@@ -1,6 +1,6 @@
 var canvas = document.getElementById("canvas");
 var processing = new Processing(canvas, function(processing) {
-    processing.size(1920, 1080);
+    processing.size(700, 700);
     processing.background(0xFFF);
 
     var mouseIsPressed = false;
@@ -39,15 +39,15 @@ var processing = new Processing(canvas, function(processing) {
 	 ****************/
 	var entities = [];
 	var agars = [];
-	var maxCells = 32;
+	var maxCells = 16;
 	var maxAgars = 5000;
-	var agarsPerTick = 4;
+	var agarsPerTick = 2;
 	var showMass = true;
 	var lifeSpan = 600;//in seconds
 	var maxMass = 1500;//surpassable only by eating other cells
-	var minMass = 5;//any cell less than this mass dies.
-	var mutationRate = 20;//In percentage points (WIP)
-	var decayrate = 0.998;//default 0.998 DON'T CHANGE UNLESS YOU KNOW WHAT YER DOING
+	var minMass = 9;//any cell less than this mass dies.
+	var mutationRate = 1;//In percentage points (WIP)
+	var decayrate = 0.999;//default 0.998 DON'T CHANGE UNLESS YOU KNOW WHAT YER DOING
 
 	var cells = [];
 
@@ -92,6 +92,7 @@ var processing = new Processing(canvas, function(processing) {
 	    this.age = 0;
 	};
 
+	//creates an array of dead cells
 	for(var i = 0; i < maxCells; i++) {
 	    cells[i] = new Cell(0, 0);
 	    cells[i].living = false;
@@ -120,7 +121,7 @@ var processing = new Processing(canvas, function(processing) {
 	};
 
 	Cell.prototype.think = function() {
-	    
+/*	    
 	    //scan for conflict
 	    var rivals = false;
 	    for(var i = 0; i < cells.length; i++) {
@@ -190,12 +191,45 @@ var processing = new Processing(canvas, function(processing) {
 	    }
 	    
 	    //convert target location to acceleration vector
-	    /*if(predators < 0) {
+	    if(predators < 0) {
 	      target[0].sub(this.position);
 	      target[0].normalize();
 	      target[0].mult(50/this.mass);
 	      this.acceleration.set(target);
-	      }*/
+	      }
+*/
+	    //Gravitational AI
+
+	    this.acceleration.set(0, 0);
+	 
+	    for(var i = 0; i < agars.length; i++) {
+		var force = new PVector(agars[i].position.x, agars[i].position.y);
+		
+		force.sub(this.position);
+		force.normalize();
+		force.mult(1/PVector.dist(this.position, agars[i].position));
+		this.acceleration.add(force);
+	    }
+	    for(var i = 0; i < cells.length; i++) {
+		if(cells[i].living) {
+		    if(cells[i].mass < this.mass * 0.9) {
+			var force = new PVector(cells[i].position.x, cells[i].position.y);
+			force.sub(this.position);
+			force.normalize();
+			force.mult(cells[i].mass/PVector.dist(this.position, cells[i].position));
+			this.acceleration.add(force);
+		    } else if(cells[i].mass * 0.9 > this.mass) {
+			var force = new PVector(cells[i].position.x, cells[i].position.y);
+			force.sub(this.position);
+			force.normalize();
+			force.mult(dist(0, 0, cells[i].velocity.x, cells[i].velocity.y) / PVector.dist(this.position, cells[i].position));//cell velocity/distance
+			this.acceleration.sub(force);
+		    }
+		}
+	    }
+	    this.acceleration.normalize();
+	    this.acceleration.mult(sqrt(this.mass));
+	    
 	};
 
 	Cell.prototype.checkEdges = function() {
@@ -209,7 +243,8 @@ var processing = new Processing(canvas, function(processing) {
 
 	    if (this.position.y > height) {
 		this.position.y = height;
-	    } 
+	    }
+	    
 	    else if (this.position.y < 0) {
 		this.position.y = 0;
 	    }
@@ -220,10 +255,13 @@ var processing = new Processing(canvas, function(processing) {
 	    //Physics calculations
 	    this.age += 1/30;
 	    this.velocity.add(this.acceleration);
-	    this.velocity.limit(100/this.mass, 100/this.mass);
-	    this.velocity.x += this.velocity.x * -0.1;
-	    this.velocity.y += this.velocity.y * -0.1;
-	    this.position.add(this.velocity); 
+	    //var normvel = this.velocity
+	    //normvel.normalize();
+	    //normvel.mult(sqrt(this.mass));
+
+	    this.velocity.limit(sqrt(this.mass), sqrt(this.mass));
+	    
+	    this.position.add(normvel); 
 	    
 	    //check for agars being eaten
 	    for(var i = 0; i < agars.length; i++) {
@@ -241,8 +279,7 @@ var processing = new Processing(canvas, function(processing) {
 	    for(var i = 0; i < cells.length; i++) {
 		var targetVector = PVector.sub(cells[i].position, this.position);
 		var targetDist = dist(0, 0, targetVector.x, targetVector.y);
-		if(abs(targetDist) < this.mass/2 && cells[i].living && this.mass * 0.9 > cells[i].mass && 
-		   cells[i].team !== this.team) {
+		if(abs(targetDist) < this.mass/2 && cells[i].living && this.mass * 0.9 > cells[i].mass && cells[i].team !== this.team) {
 		    cells[i].living = false;
 		    this.mass += cells[i].mass;
 		}
@@ -286,9 +323,9 @@ var processing = new Processing(canvas, function(processing) {
 		} 
 	    }
 	    if(agars.length > maxAgars) {
-		spawned = 1;
+		spawned = agarsPerTick;
 	    }
-	    while(spawned < 1) {
+	    while(spawned < agarsPerTick) {
 		agars.push(new Agar());
 		spawned++;
 	    }
@@ -310,6 +347,8 @@ var processing = new Processing(canvas, function(processing) {
 	    //println("Frame count is " + frameCount );
 	    background(255, 255, 255);
 	    updateAgars();
+	    //println(cells);
+	    
 	    for(var i = 0; i < cells.length; i++) {
 		if(cells[i].living) {
 		    cells[i].think();
