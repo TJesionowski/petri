@@ -24,9 +24,9 @@ public class Cell {
 		// test method
 	}
 	
-	public float calcLight(Position pos) {
+	public double calcLight(Position pos) {
 		//this is where the amount of light is calculated
-		// TODO
+		return Math.log(pos.dist(new Position(0.0, 0.0)));		
 	}
 	// TODO constructor
 	// TODO test method
